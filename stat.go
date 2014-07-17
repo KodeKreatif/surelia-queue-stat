@@ -5,8 +5,10 @@ import (
   "strings"
   "bufio"
   "fmt"
+  "time"
 	"database/sql"
 	_ "github.com/mattn/go-sqlite3"
+  "github.com/paulhammond/tai64"
 	"log"
 	"os"
 )
@@ -19,6 +21,7 @@ type Entry struct {
   target int
   state int
   size int64
+  start time.Time
 }
 
 func parse(fileName string, entries map[string]Entry) map[string]Entry {
@@ -61,6 +64,11 @@ func parse(fileName string, entries map[string]Entry) map[string]Entry {
           } else {
             entry.retries ++
           }
+          time, _:= tai64.ParseTai64n(fields[0])
+          fmt.Println(time)
+          entry.start = time
+          entries[msg] = entry
+
           entries[msg] = entry
         }
 
@@ -84,7 +92,7 @@ func main() {
 	defer db.Close()
 
 	sql := `
-	create table stat (msg text not null, retries integer not null, efrom text, eto text, target integer, state integer, size integer);
+	create table stat (msg text not null, retries integer not null, efrom text, eto text, target integer, state integer, size integer, start time);
 	`
 	_, err = db.Exec(sql)
 	if err != nil {
@@ -103,11 +111,11 @@ func main() {
     log.Fatal(err)
   }
 
-  stmt, err := tx.Prepare("insert into stat(msg, retries, efrom, eto, target, size) values (?, ?, ?, ?, ?, ?)")
+  stmt, err := tx.Prepare("insert into stat(msg, retries, efrom, eto, target, size, start) values (?, ?, ?, ?, ?, ?, ?)")
   defer stmt.Close()
 
   for _, entry := range entries {
-    _, err = stmt.Exec(entry.msg, entry.retries, entry.efrom, entry.eto, entry.target, entry.size)
+    _, err = stmt.Exec(entry.msg, entry.retries, entry.efrom, entry.eto, entry.target, entry.size, entry.start)
     if err != nil {
       log.Fatal(err)
     }
